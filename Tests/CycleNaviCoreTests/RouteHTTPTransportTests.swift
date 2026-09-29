@@ -22,6 +22,16 @@ private final class LocalRouteProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 struct RouteHTTPTransportTests {
+    @Test func pacingReservesSeparateSlotsForConcurrentRequests() async {
+        let pacer = RouteRequestPacer()
+        let now = ContinuousClock.now
+        let first = await pacer.reserve(now: now)
+        let second = await pacer.reserve(now: now)
+        let third = await pacer.reserve(now: now)
+        #expect(first == now)
+        #expect(first.duration(to: second) == .milliseconds(1100))
+        #expect(first.duration(to: third) == .milliseconds(2200))
+    }
     @Test func usesPrivatePOST() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [LocalRouteProtocol.self]
@@ -32,6 +42,8 @@ struct RouteHTTPTransportTests {
         let request = try #require(LocalRouteProtocol.captured.get())
         #expect(request.httpMethod == "POST")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(request.value(forHTTPHeaderField: "User-Agent")?.contains("CycleNavi") == true)
+        #expect(request.value(forHTTPHeaderField: "X-Client-Id") == "jp.artico.cyclenavi.development")
         #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
         #expect(request.timeoutInterval == 30)
         // URLSession may expose the POST body as a stream to URLProtocol.

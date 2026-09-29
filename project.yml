@@ -67,3 +67,5 @@ schemes:
         CycleNavi: all
     test:
       targets: [CycleNaviLiveTests]
+      environmentVariables:
+        CYCLENAVI_VALHALLA_ROUTE_URL: $(CYCLENAVI_VALHALLA_ROUTE_URL)

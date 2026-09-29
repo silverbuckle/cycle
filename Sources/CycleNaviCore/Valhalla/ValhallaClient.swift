@@ -12,6 +12,16 @@ final class RouteSessionDelegate: NSObject, URLSessionTaskDelegate, Sendable {
     }
 }
 
+actor RouteRequestPacer {
+    static let shared = RouteRequestPacer()
+    private var next: ContinuousClock.Instant?
+    func reserve(now: ContinuousClock.Instant) -> ContinuousClock.Instant {
+        let start = max(now, next ?? now)
+        next = start.advanced(by: .milliseconds(1100))
+        return start
+    }
+}
+
 public struct URLSessionRouteTransport: RouteHTTPTransport {
     private let session: URLSession
     public init(configuration: URLSessionConfiguration = .ephemeral) {
@@ -21,9 +31,14 @@ public struct URLSessionRouteTransport: RouteHTTPTransport {
         session = URLSession(configuration: configuration, delegate: RouteSessionDelegate(), delegateQueue: nil)
     }
     public func post(url: URL, body: Data) async throws -> (Data, Int) {
+        try Task.checkCancellation()
+        let start = await RouteRequestPacer.shared.reserve(now: .now)
+        try await ContinuousClock().sleep(until: start)
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("CycleNavi/0.1 (development routing verification)", forHTTPHeaderField: "User-Agent")
+        request.setValue("jp.artico.cyclenavi.development", forHTTPHeaderField: "X-Client-Id")
         request.httpBody = body
         let (data, response) = try await session.data(for: request)
         guard let response = response as? HTTPURLResponse else { throw RoutingFailure.invalidResponse }

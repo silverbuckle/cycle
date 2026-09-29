@@ -1,7 +1,8 @@
 import SwiftUI
+import CycleNaviCore
 
 struct RouteDetailView: View {
-    let ride: RideRoute
+    let ride: PlannedRoute
     @Environment(\.dismiss) private var dismiss
     @State private var speech = SpeechService()
 
@@ -9,8 +10,8 @@ struct RouteDetailView: View {
         NavigationStack {
             List {
                 Section {
-                    Text(ride.route.name).font(.title3.weight(.semibold))
-                    Label("\(RideFormat.distance(ride.route.distance)) · 約\(RideFormat.duration(ride.route.expectedTravelTime))",
+                    Text(ride.name).font(.title3.weight(.semibold))
+                    Label("\(RideFormat.distance(ride.meters)) · 約\(RideFormat.duration(ride.seconds))",
                           systemImage: "bicycle")
                     Text("案内文をタップすると読み上げます。現在地に応じた自動ナビはまだ接続していません。")
                         .font(.caption).foregroundStyle(.secondary)
@@ -19,16 +20,16 @@ struct RouteDetailView: View {
                     }
                 }
                 Section("道順") {
-                    ForEach(Array(ride.route.steps.enumerated()), id: \.offset) { index, step in
-                        if !step.instructions.isEmpty {
-                            Button { speech.speak(step.instructions) } label: {
+                    ForEach(Array(ride.instructions.enumerated()), id: \.offset) { index, step in
+                        if !step.text.isEmpty {
+                            Button { speech.speak(step.text) } label: {
                                 HStack(alignment: .top, spacing: 14) {
                                     Text(String(index + 1)).font(.caption.monospacedDigit())
                                         .frame(width: 25, height: 25)
                                         .background(Theme.forest.opacity(0.1), in: Circle())
                                     VStack(alignment: .leading, spacing: 6) {
-                                        Text(step.instructions).foregroundStyle(Theme.ink)
-                                        Text(RideFormat.distance(step.distance)).font(.caption)
+                                        Text(step.text).foregroundStyle(Theme.ink)
+                                        Text(RideFormat.distance(step.meters)).font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer(minLength: 0)
@@ -36,6 +37,7 @@ struct RouteDetailView: View {
                                 }
                                 .padding(.vertical, 6)
                             }
+                            .accessibilityIdentifier("speakStep\(index)")
                         }
                     }
                 }

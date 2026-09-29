@@ -1,4 +1,5 @@
 import MapKit
+import CycleNaviCore
 
 struct Place: Identifiable {
     let id = UUID()
@@ -26,11 +27,6 @@ struct Place: Identifiable {
     }
 }
 
-struct RideRoute: Identifiable {
-    let id = UUID()
-    let route: MKRoute
-}
-
 enum PlannerError: LocalizedError {
     case noCyclingRoute
     var errorDescription: String? {
@@ -53,23 +49,31 @@ struct AppleRouteService {
         return result.mapItems.map { Place(item: $0) }
     }
 
-    func routes(from: Place, to: Place) async throws -> [RideRoute] {
+    func routes(from: Place, to: Place) async throws -> [PlannedRoute] {
         let request = MKDirections.Request()
         request.source = from.mapItem
         request.destination = to.mapItem
         request.transportType = .cycling
         request.requestsAlternateRoutes = true
         let response = try await MKDirections(request: request).calculate()
-        #if DEBUG
-        NSLog("CycleNavi directions: requested=%lu returned=%@", request.transportType.rawValue,
-              response.routes.map { "type=\($0.transportType.rawValue) seconds=\($0.expectedTravelTime) meters=\($0.distance) points=\($0.polyline.pointCount)" }.joined(separator: "; "))
-        #endif
         let routes = response.routes.filter {
             $0.transportType.contains(.cycling) && $0.expectedTravelTime.isFinite &&
             $0.expectedTravelTime > 0 && $0.distance.isFinite && $0.distance > 0 &&
             $0.polyline.pointCount >= 2
         }
         guard !routes.isEmpty else { throw PlannerError.noCyclingRoute }
-        return routes.map { RideRoute(route: $0) }
+        return try routes.map(Self.normalize)
+    }
+
+    static func normalize(_ route: MKRoute) throws -> PlannedRoute {
+        guard route.transportType == .cycling else { throw PlannerError.noCyclingRoute }
+        var points = [CLLocationCoordinate2D](repeating: .init(), count: route.polyline.pointCount)
+        route.polyline.getCoordinates(&points, range: NSRange(location: 0, length: points.count))
+        return try PlannedRoute(id: UUID().uuidString, provider: .apple, name: route.name,
+            coordinates: points.map { try Coordinate(latitude: $0.latitude, longitude: $0.longitude) },
+            seconds: route.expectedTravelTime, meters: route.distance,
+            instructions: route.steps.filter { !$0.instructions.isEmpty }.map {
+                try RouteInstruction(text: $0.instructions, meters: $0.distance, shapeIndex: nil)
+            }, surface: .unknown)
     }
 }

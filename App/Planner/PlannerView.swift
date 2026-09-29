@@ -3,14 +3,16 @@ import MapKit
 import CycleNaviCore
 
 struct PlannerView: View {
-    @State private var model = PlannerModel()
+    @State private var model: PlannerModel
     @State private var location = LocationService()
     @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.675, longitude: 139.47),
         span: MKCoordinateSpan(latitudeDelta: 0.13, longitudeDelta: 0.13)))
     @State private var searchTarget: SearchTarget?
     @State private var showPreferences = false
-    @State private var detail: RideRoute?
+    @State private var detail: PlannedRoute?
+
+    init(model: PlannerModel) { _model = State(initialValue: model) }
 
     private enum SearchTarget: String, Identifiable {
         case origin, destination
@@ -28,6 +30,8 @@ struct PlannerView: View {
                         title
                         destinationFields
                         preferencesButton
+                        Text(model.serviceDescription).font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("routingServiceStatus")
                         if let message = location.message {
                             Label(message, systemImage: "location.slash")
                                 .font(.caption).foregroundStyle(Theme.rust)
@@ -44,13 +48,23 @@ struct PlannerView: View {
                         .opacity(model.canSearch || model.isLoading ? 1 : 0.45)
                         .accessibilityIdentifier("findRoutesButton")
                         routeResults
-                        Text("オンライン計画版 · Appleの自転車経路を表示\n路面・交通量の確認と、快適さによる最適化はこれから対応します。")
+                        if let warning = model.warningMessage {
+                            Text(warning).font(.caption).foregroundStyle(Theme.rust)
+                        }
+                        if model.selected?.provider == .valhalla {
+                            Link("© OpenStreetMap contributors", destination: URL(string: "https://www.openstreetmap.org/copyright")!)
+                                .font(.caption)
+                            Link("OpenStreetMapで地図を修正", destination: URL(string: "https://www.openstreetmap.org/fixthemap")!)
+                                .font(.caption)
+                        }
+                        Text("オンライン計画版 · MapKit表示 / Valhalla経路\n路面・交通量は未確認。現地の標識・通行規制を優先してください。")
                             .font(.caption).foregroundStyle(.secondary)
                             .lineSpacing(4)
                     }
                     .padding(24)
                 }
                 .background(Theme.paper)
+                .accessibilityIdentifier("plannerScroll")
             }
             .background(Theme.paper)
         }
@@ -66,8 +80,6 @@ struct PlannerView: View {
         .sheet(isPresented: $showPreferences) { preferences }
         .sheet(item: $detail) { RouteDetailView(ride: $0) }
         .onChange(of: model.selectedID) { _, _ in camera = .automatic }
-        .onChange(of: model.extraMinutes) { _, _ in model.reconcileSelection() }
-        .onChange(of: model.pavedOnly) { _, _ in model.reconcileSelection() }
         .onChange(of: location.place?.id) { _, _ in
             if let place = location.place {
                 model.select(place, asOrigin: true)
@@ -102,7 +114,7 @@ struct PlannerView: View {
                     .tint(Theme.rust)
             }
             if let selected = model.selected {
-                MapPolyline(selected.route.polyline)
+                MapPolyline(selected.mapPolyline)
                     .stroke(Theme.forest, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
             }
         }
@@ -194,7 +206,7 @@ struct PlannerView: View {
         } else if model.hasRequested && !model.isLoading {
             if model.eligibleRoutes.isEmpty {
                 Label(model.pavedOnly
-                    ? "路面を確認できる候補がありません。Apple経路には路面情報が含まれないため、舗装限定では表示できません。"
+                    ? "路面を確認できる候補がありません。現在は路面の根拠を取得していないため、舗装限定では表示できません。"
                     : "条件に合う候補がありません。条件を見直して再検索してください。",
                     systemImage: "map")
                     .font(.subheadline).foregroundStyle(Theme.rust)
@@ -217,7 +229,7 @@ struct PlannerView: View {
         }
     }
 
-    private func routeCard(_ ride: RideRoute, index: Int) -> some View {
+    private func routeCard(_ ride: PlannedRoute, index: Int) -> some View {
         Button { model.selectedID = ride.id } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -227,11 +239,11 @@ struct PlannerView: View {
                     Image(systemName: model.selectedID == ride.id ? "checkmark.circle.fill" : "circle")
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
-                    Text(RideFormat.duration(ride.route.expectedTravelTime)).font(.title2.weight(.bold))
-                    Text(RideFormat.distance(ride.route.distance)).font(.subheadline)
+                    Text(RideFormat.duration(ride.seconds)).font(.title2.weight(.bold))
+                    Text(RideFormat.distance(ride.meters)).font(.subheadline)
                     Spacer(minLength: 0)
                 }
-                Text(ride.route.name).font(.subheadline).lineLimit(2)
+                Text(ride.name).font(.subheadline).lineLimit(2)
                 Text("路面・交通量は未確認" + extraTime(ride))
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -244,10 +256,10 @@ struct PlannerView: View {
         .buttonStyle(.plain)
     }
 
-    private func extraTime(_ ride: RideRoute) -> String {
+    private func extraTime(_ ride: PlannedRoute) -> String {
         guard let fastest = model.fastestSeconds else { return "" }
-        let extra = Int(ceil(max(0, ride.route.expectedTravelTime - fastest) / 60))
-        return extra > 0 ? " · 最短候補より＋\(extra)分" : ""
+        let extra = max(0, ride.seconds - fastest)
+        return extra > 0 ? " · 最短候補より＋\(RideFormat.duration(extra))" : ""
     }
 
     private var preferences: some View {
@@ -260,7 +272,7 @@ struct PlannerView: View {
                         Text("グラベル").tag(BikeKind.gravel)
                     }
                     .pickerStyle(.segmented)
-                    Text("車種はこの計画での設定です。現在のApple経路は車種別の最適化に対応していません。")
+                    Text("Valhallaの自転車設定に反映します。グラベルはシクロクロスを初期設定に用います。変更後は再検索してください。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("遠回りの許容度") {
@@ -278,7 +290,23 @@ struct PlannerView: View {
                 Section("路面") {
                     Toggle("舗装が確認できる道だけ", isOn: $model.pavedOnly)
                         .accessibilityIdentifier("pavedOnlyToggle")
-                    Text("オフの場合は路面未確認の候補も含みます。オンの場合、現在のApple経路は路面未確認のため候補を表示できません。")
+                    Text("オフの場合は路面未確認の候補も含みます。オンの場合、現在は路面確認の根拠がないため候補を表示できません。悪路回避の設定とは別です。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("道の好み（変更後に再検索）") {
+                    Text("車と混在する道路").font(.subheadline)
+                    Slider(value: $model.useRoads, in: 0...1, step: 0.05)
+                        .accessibilityLabel("車道の許容度")
+                    HStack { Text("なるべく避ける"); Spacer(); Text("許容する") }.font(.caption)
+                    Text("坂").font(.subheadline)
+                    Slider(value: $model.useHills, in: 0...1, step: 0.05)
+                        .accessibilityLabel("坂の許容度")
+                    HStack { Text("なるべく避ける"); Spacer(); Text("許容する") }.font(.caption)
+                    Text("悪路の回避").font(.subheadline)
+                    Slider(value: $model.avoidBadSurfaces, in: 0...1, step: 0.05)
+                        .accessibilityLabel("悪路の回避度")
+                    HStack { Text("弱め"); Spacer(); Text("強め") }.font(.caption)
+                    Text("走りやすさや安全性を保証する設定ではありません。OSMの道路情報と車種に基づいて計算します。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
