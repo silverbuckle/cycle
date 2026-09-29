@@ -7,11 +7,11 @@
 SwiftUIのiPhone試作と、外部依存のないSwiftライブラリ `CycleNaviCore` を実装しています。
 
 - Apple地図、出発地・目的地の実検索、遠回り設定、現在地の一回取得。
-- 自転車候補の絞り込み・道順の手動読み上げの接続コード。
-- **経路取得には未解決の制約があります**：2026-09-29の吉祥寺駅→立川駅の実測では、
-  cycling（8）の要求にautomobile（1）の3候補が返り、安全のため全て除外しました。
-  自転車経路・音声画面の実取得に基づく動作確認は未完了です。
-- OSMはまだ未接続。次はOSMベースの経路サービスを接続する段階です。
+- OSM/Valhalla経路の取得・比較・MapKit表示と道順の手動読み上げ。
+- 車種、車道/坂の許容度、悪路回避をValhallaへ反映。推定時間の上限で候補を絞り込み。
+- 2026-09-29、公開デモを一時的に使用して吉祥寺駅→立川駅、武蔵小杉駅→登戸駅の実取得・画面操作を確認。
+- **本番バックエンドは未配備**。通常起動では接続先未設定と表示します。公開デモは恒久利用しません。
+- Apple経路は比較用コードとして保持。今回の環境ではcycling要求にautomobileが返ったため採用していません。
 
 ナビ判断基盤：
 
@@ -21,7 +21,7 @@ SwiftUIのiPhone試作と、外部依存のないSwiftライブラリ `CycleNavi
 - GPS精度とデータの鮮度に応じた事前・直前案内イベント。同じ案内の繰り返しを抑制。
 
 位置に応じた自動音声案内、逸脱再探索、バックグラウンド案内、オフライン、
-快適さ・車種別の経路最適化、店舗・修理店・宿泊情報、アカウント・投稿は未実装です。
+独自の快適性評価、店舗・修理店・宿泊情報、アカウント・投稿は未実装です。
 現段階で実走ナビとしては使えません。
 
 ## 検証
@@ -43,8 +43,30 @@ xcodebuild -project CycleNavi.xcodeproj -scheme CycleNavi \
   -derivedDataPath .build/iphone CODE_SIGNING_ALLOWED=NO test
 ```
 
-オンライン実取得テストは別Scheme `CycleNaviLive` です。Appleの通信・経路対応に依存し、
-上記の区間では現在失敗します。通常テストの成功と混同しないでください。
+オンライン実取得テストは別Scheme `CycleNaviLive` です。接続先未指定ではスキップし、
+成功とは扱いません。通常テストの合成データは実走経路ではありません。
+
+## Valhalla接続設定
+
+自分が利用権限を持つHTTPSの完全な `/route` URLを、XcodeのScheme → Run → Arguments →
+Environment Variablesで `CYCLENAVI_VALHALLA_ROUTE_URL` に設定してください。
+値は画面の「送信先」で確認できます。Info.plistの同名キーでも設定可能です。
+URLへのユーザー名・パスワード・クエリ・フラグメント埋め込みは拒否します。
+位置は経路計算サーバーへ送信されるため、提供元のログ/プライバシー方針も確認してください。
+認証付きの本番ゲートウェイ接続は別の運用作業です。
+
+Liveテストは同名のXcode build settingでURLを渡します（秘密値は渡さない）。
+
+```sh
+xcodebuild -project CycleNavi.xcodeproj -scheme CycleNaviLive \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -derivedDataPath .build/iphone CODE_SIGNING_ALLOWED=NO \
+  CYCLENAVI_VALHALLA_ROUTE_URL=https://your-routing-server.example/route test
+```
+
+OSM経路の路面は現段階ではunknownです。「舗装が確認できる道だけ」をオンにすると全候補が除外されます。
+悪路回避はその車種での計算上の好みであり、路面確認や安全保証ではありません。
+基準候補と好みの候補が同じ線なら1件にまとめます。候補の一部取得失敗も明示します。
 
 ## 接続時の契約
 
@@ -75,3 +97,4 @@ xcodebuild -project CycleNavi.xcodeproj -scheme CycleNavi \
 - [プロダクト仕様](docs/superpowers/specs/2026-09-29-cyclenavi-design.md)
 - [ナビ基盤の実装計画](docs/superpowers/plans/2026-09-29-navigation-core.md)
 - [Xcodeのセットアップ記録](docs/xcode-setup.md)
+- [Valhalla接続の検証記録](docs/implementation/valhalla-integration-result.md)
