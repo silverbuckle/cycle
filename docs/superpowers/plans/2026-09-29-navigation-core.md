@@ -1,5 +1,7 @@
 # CycleNavi Navigation Core Implementation Plan
 
+実行結果（2026-09-29）: Task 1–3完了。Swift Testing 24件成功、Release build成功、iOS Simulator向けXcode build成功。別レビュアーによるstage 1AのレビューでCritical/Important/Minor指摘なし。詳細は `docs/implementation/navigation-core-result.md`。Xcodeは導入済みで、以下の環境未準備の記述は計画作成当時の記録。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** iPhoneナビに組み込める、遠回り・路面条件の判定と音声案内タイミングのSwift基盤を、ネットワークやXcodeなしで検証可能にする。
@@ -84,7 +86,7 @@ README.md
 
 **Interfaces:** Produces `RouteRequest.rerouting(from:elapsedSeconds:) throws -> RouteRequest`。経過秒は「今回の探索以降」ではなく「ライド開始以降」。`remainingBudgetSeconds` は出発時の到着予算から減算する。
 
-- [ ] **Step 1: パッケージとモデルの失敗テストを用意する。** `.gitignore` は `.build/`, `.swiftpm/`, `.DS_Store`。Package.swift:
+- [x] **Step 1: パッケージとモデルの失敗テストを用意する。** `.gitignore` は `.build/`, `.swiftpm/`, `.DS_Store`。Package.swift:
 
 ```swift
 // swift-tools-version: 6.0
@@ -176,8 +178,8 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: `swift test --filter RouteModelsTests` を実行し、未実装の型による失敗を確認。** ターゲットが空である場合はまず空の `RouteModels.swift` を作成する。
-- [ ] **Step 3: インターフェースの本体を実装する。** すべての数値に `isFinite` を適用。緯度は−90…90、経度は−180…180。予算・経過時間・許容度は0以上。計算結果も有限であること。再探索は経過時間の後退を拒否する。
+- [x] **Step 2: `swift test --filter RouteModelsTests` を実行し、未実装の型による失敗を確認。** ターゲットが空である場合はまず空の `RouteModels.swift` を作成する。
+- [x] **Step 3: インターフェースの本体を実装する。** すべての数値に `isFinite` を適用。緯度は−90…90、経度は−180…180。予算・経過時間・許容度は0以上。計算結果も有限であること。再探索は経過時間の後退を拒否する。
 
 ```swift
 // DetourLimit.budget の本体
@@ -197,8 +199,8 @@ guard result.isFinite else { throw InputError.invalidValue }
 return result
 ```
 
-- [ ] **Step 4: `swift test --filter RouteModelsTests` が通ることを確認。** 予算と経過時間へのNaN入力、加算オーバーフローも上のテストに追加して確認する。
-- [ ] **Step 5: 変更をコミットする。** 現ディレクトリに `.git` はないため、実行時に親の `git rev-parse --show-toplevel` を確認。既存管理外ならこのプロジェクトで `git init`。タスクで作った4ファイルのみをaddし、`feat: define route constraints and reroute budget` としてコミットする。リモートへのpushは行わない。
+- [x] **Step 4: `swift test --filter RouteModelsTests` が通ることを確認。** 予算と経過時間へのNaN入力、加算オーバーフローも上のテストに追加して確認する。
+- [x] **Step 5: 変更をコミットする。** 現ディレクトリに `.git` はないため、実行時に親の `git rev-parse --show-toplevel` を確認。既存管理外ならこのプロジェクトで `git init`。タスクで作った4ファイルのみをaddし、`feat: define route constraints and reroute budget` としてコミットする。リモートへのpushは行わない。
 
 ### Task 2: 条件に合うルート候補を抽出する
 
@@ -206,7 +208,7 @@ return result
 
 **Interfaces:** Consumes `SurfacePolicy`, `DetourLimit`, `InputError`。Produces `selectRoutes(_:surface:detour:remainingBudgetSeconds:) throws -> RouteSelection`。再探索ではTask 1の `remainingBudgetSeconds` を必ず渡し、元の予算と新しい候補に基づく上限の小さい方を使う。
 
-- [ ] **Step 1: 以下の失敗テストを作成。** 候補の評価値や路面は提供元で正規化済みという境界とする。
+- [x] **Step 1: 以下の失敗テストを作成。** 候補の評価値や路面は提供元で正規化済みという境界とする。
 
 ```swift
 import Testing
@@ -243,8 +245,8 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: `swift test --filter RouteSelectionTests` で未実装による失敗を確認。**
-- [ ] **Step 3: 以下を実装。** 候補の順位付けはこの関数の責任に含めず、入力順を保つ。実装者は公開memberwise initializerを `RouteCandidate` に追加する。
+- [x] **Step 2: `swift test --filter RouteSelectionTests` で未実装による失敗を確認。**
+- [x] **Step 3: 以下を実装。** 候補の順位付けはこの関数の責任に含めず、入力順を保つ。実装者は公開memberwise initializerを `RouteCandidate` に追加する。
 
 ```swift
 public enum Surface: Sendable { case paved, unpaved, unknown }
@@ -286,8 +288,8 @@ public func selectRoutes(_ candidates: [RouteCandidate], surface: SurfacePolicy,
 
 未舗装許容の場合も `unknown` は後続UIで「路面未確認」と表示する。`paved` は区間全体の舗装確認を意味し、一部不明なら候補全体を `unknown` とする。これはプロトタイプ用の厳しい判定で、1Bの区間モデルで詳細化する。
 
-- [ ] **Step 4: `swift test --filter RouteSelectionTests` を実行。** 未舗装許容時の未舗装候補、ゼロ許容、同率最短、空候補への不正許容値も具体例としてテストを追加する。
-- [ ] **Step 5: 上記2ファイルのみコミット。** メッセージ `feat: enforce route surface and detour constraints`。
+- [x] **Step 4: `swift test --filter RouteSelectionTests` を実行。** 未舗装許容時の未舗装候補、ゼロ許容、同率最短、空候補への不正許容値も具体例としてテストを追加する。
+- [x] **Step 5: 上記2ファイルのみコミット。** メッセージ `feat: enforce route surface and detour constraints`。
 
 ### Task 3: 位置サンプルから案内イベントを一度ずつ発行する
 
@@ -295,7 +297,7 @@ public func selectRoutes(_ candidates: [RouteCandidate], surface: SurfacePolicy,
 
 **Interfaces:** Produces `CueScheduler.next(routeID:turnID:meters:accuracyMeters:sampleAgeSeconds:) -> Cue?`。`meters` は道路に対応付けた次の曲がり角までの残り距離であり、曲がり角への直線距離ではない。アプリ側で対象turnとrouteを確定して渡す。ルート変更ごとに `routeID` を新規発行する。端末時刻の変化を避けるためageは単調時間差で渡す。
 
-- [ ] **Step 1: 次のテストを追加する。**
+- [x] **Step 1: 次のテストを追加する。**
 
 ```swift
 import Testing
@@ -336,8 +338,8 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: `swift test --filter CueSchedulerTests` で未実装による失敗を確認。**
-- [ ] **Step 3: 以下の状態機械を実装する。** 200m・30m・精度30m・鮮度10秒は初期の検証値。実走時に速度や近接交差点の影響を測り調整する。安全性が検証された閾値とは表示しない。
+- [x] **Step 2: `swift test --filter CueSchedulerTests` で未実装による失敗を確認。**
+- [x] **Step 3: 以下の状態機械を実装する。** 200m・30m・精度30m・鮮度10秒は初期の検証値。実走時に速度や近接交差点の影響を測り調整する。安全性が検証された閾値とは表示しない。
 
 ```swift
 public enum Cue: Equatable, Sendable { case advance, immediate }
@@ -373,8 +375,8 @@ public struct CueScheduler: Sendable {
 
 非同期で遅れて到着した旧ルートのサンプルは、呼び出し元で現行routeIDと照合して破棄する。この型は呼び出し元から渡されたIDを現在のルートと解釈する。音声の完了・割り込み・再開は1Bで扱い、イベント発行と音声再生成功を混同しない。
 
-- [ ] **Step 4: 全体を `swift test` で検証。** 200m超で発行しない、200m→30mで順番に発行、turnIDが違えば次の案内が発行されることもテストする。
-- [ ] **Step 5: READMEに実行方法と現在の範囲を記載。** 次の内容を含める。
+- [x] **Step 4: 全体を `swift test` で検証。** 200m超で発行しない、200m→30mで順番に発行、turnIDが違えば次の案内が発行されることもテストする。
+- [x] **Step 5: READMEに実行方法と現在の範囲を記載。** 次の内容を含める。
 
 ```markdown
 # CycleNavi
@@ -397,7 +399,7 @@ iPhoneアプリのビルドと実機検証にはXcodeとiOS SDKが必要です�
 - docs/superpowers/plans/2026-09-29-navigation-core.md
 ```
 
-- [ ] **Step 6: `swift build -c release` と `git diff --check` を実行。** エラーなしを確認してタスクの3ファイルを `feat: schedule navigation cues without repeats` としてコミット。
+- [x] **Step 6: `swift build -c release` と `git diff --check` を実行。** エラーなしを確認してタスクの3ファイルを `feat: schedule navigation cues without repeats` としてコミット。
 
 ## 完了判定と次の作業
 
