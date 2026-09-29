@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-29-cyclenavi-design.md`
 
+**実行結果:** [結果記録](../../implementation/iphone-planner-result.md)。画面と接続コードは実装済み。
+実検索は成功したが、自転車経路の実取得は失敗（cycling要求にautomobile返却）。
+このため実経路・音声までのend-to-end完了は宣言しない。次段階でOSMベース経路を接続する。
+
 ## 今回の範囲と継続する要件
 
 ユーザーの「進めてください」は前ターンで示した経路サービスとiPhone画面の接続を進める指示として扱う。新しい製品の方向性を追加しない。これはstage 1Bを構成するオンライン計画画面の実装単位。

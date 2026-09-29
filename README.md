@@ -4,15 +4,25 @@
 
 ## 現在の実装範囲
 
-最初の実装単位は、外部依存のないSwiftライブラリ `CycleNaviCore` です。
+SwiftUIのiPhone試作と、外部依存のないSwiftライブラリ `CycleNaviCore` を実装しています。
+
+- Apple地図、出発地・目的地の実検索、遠回り設定、現在地の一回取得。
+- 自転車候補の絞り込み・道順の手動読み上げの接続コード。
+- **経路取得には未解決の制約があります**：2026-09-29の吉祥寺駅→立川駅の実測では、
+  cycling（8）の要求にautomobile（1）の3候補が返り、安全のため全て除外しました。
+  自転車経路・音声画面の実取得に基づく動作確認は未完了です。
+- OSMはまだ未接続。次はOSMベースの経路サービスを接続する段階です。
+
+ナビ判断基盤：
 
 - 追加時間・割合で遠回り上限を計算。
 - 通行不可や路面条件に合わない候補を除外した後、許容時間内の候補を抽出。
 - 再探索でも目的地・立ち寄り順・車種・路面条件・出発時の時間上限を保持。
 - GPS精度とデータの鮮度に応じた事前・直前案内イベント。同じ案内の繰り返しを抑制。
 
-地図画面、GPS取得、音声再生、実道路の経路探索、店舗・修理店情報、宿泊旅の画面、
-アカウント、投稿機能はまだ実装していません。ライブラリだけで実走ナビはできません。
+位置に応じた自動音声案内、逸脱再探索、バックグラウンド案内、オフライン、
+快適さ・車種別の経路最適化、店舗・修理店・宿泊情報、アカウント・投稿は未実装です。
+現段階で実走ナビとしては使えません。
 
 ## 検証
 
@@ -24,8 +34,17 @@ swift test
 swift build -c release
 ```
 
-Xcodeの「Open Existing Project」からこのフォルダの `Package.swift` を開けます。
-これはライブラリであり、起動できるiPhoneアプリではありません。
+Xcodeで `CycleNavi.xcodeproj` を開き、Scheme `CycleNavi` とiPhoneシミュレーターを選びRun。
+実機の署名設定は未実施です。プロジェクト再生成は `xcodegen generate`。
+
+```sh
+xcodebuild -project CycleNavi.xcodeproj -scheme CycleNavi \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -derivedDataPath .build/iphone CODE_SIGNING_ALLOWED=NO test
+```
+
+オンライン実取得テストは別Scheme `CycleNaviLive` です。Appleの通信・経路対応に依存し、
+上記の区間では現在失敗します。通常テストの成功と混同しないでください。
 
 ## 接続時の契約
 

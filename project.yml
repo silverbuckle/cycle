@@ -1,0 +1,69 @@
+name: CycleNavi
+options:
+  bundleIdPrefix: jp.artico
+  deploymentTarget:
+    iOS: '18.0'
+packages:
+  CycleNaviCore:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    DEVELOPMENT_TEAM: ''
+targets:
+  CycleNavi:
+    type: application
+    platform: iOS
+    sources: [App]
+    dependencies:
+      - package: CycleNaviCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.artico.cyclenavi
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: CycleNavi
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: 現在地を地図に表示し、ライドの出発地点に使います。
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: '1'
+  CycleNaviUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [AppUITests]
+    dependencies:
+      - target: CycleNavi
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  CycleNaviTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [AppTests]
+    dependencies:
+      - target: CycleNavi
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  CycleNaviLiveTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [AppLiveTests]
+    dependencies:
+      - target: CycleNavi
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  CycleNavi:
+    build:
+      targets:
+        CycleNavi: all
+    test:
+      targets: [CycleNaviTests, CycleNaviUITests]
+  CycleNaviLive:
+    build:
+      targets:
+        CycleNavi: all
+    test:
+      targets: [CycleNaviLiveTests]
