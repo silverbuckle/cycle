@@ -21,10 +21,12 @@ struct PrimaryButtonStyle: ButtonStyle {
 
 enum RideFormat {
     static func duration(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "時間不明" }
         let minutes = max(1, Int((seconds / 60).rounded(.up)))
         return minutes < 60 ? "\(minutes)分" : "\(minutes / 60)時間\(minutes % 60)分"
     }
     static func distance(_ meters: Double) -> String {
-        meters < 1000 ? "\(Int(meters.rounded())) m" : String(format: "%.1f km", meters / 1000)
+        guard meters.isFinite, meters >= 0 else { return "距離不明" }
+        return meters < 1000 ? "\(Int(meters.rounded())) m" : String(format: "%.1f km", meters / 1000)
     }
 }

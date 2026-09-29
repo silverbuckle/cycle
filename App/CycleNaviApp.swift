@@ -3,6 +3,6 @@ import SwiftUI
 @main
 struct CycleNaviApp: App {
     var body: some Scene {
-        WindowGroup { PlannerView() }
+        WindowGroup { PlannerView(model: RoutingConfiguration.applicationModel()) }
     }
 }
